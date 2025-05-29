@@ -2,12 +2,13 @@
  * Name: Krit Jarupanitkul
  * StudentID: 6480604
  */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 
 #define MAX_CMD_BUFFER 255
+#define MAX_TOKENS 64
 
 /*
 Milestone 1: Interactive command-line interpreter
@@ -59,19 +60,54 @@ void handle_bad_command() {
     printf("bad command\n");
 }
 
+/*
+Milestone 3
+*/
+int tokenize(char *line, char **tokens) {
+    int ntok = 0;
+    char *p = strtok(line, " \t");
+    while (p && ntok < MAX_TOKENS-1) {
+        tokens[ntok++] = p;
+        p = strtok(NULL, " \t");
+    }
+    tokens[ntok] = NULL;
+    return ntok;
+}
+
+int run_external(char **tokens, int background) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        setpgid(0, 0);
+        execvp(tokens[0], tokens);
+        perror("execvp");
+        exit(1);
+    }
+    int status = 0;
+    if (!background) {
+        waitpid(pid, &status, 0);
+    }
+    return status;
+}
+
 void process_command(char *buffer, char *last) {
-    // 3. History (!!)
+    char *tokens[MAX_TOKENS];
+    int ntok = tokenize(buffer, tokens);
+
+    if (ntok == 0) return; // No command
+    //History !!
     if (handle_history(buffer, last) == -1) {
         return;
     }
-
-    // 4. Built-ins
+    //Built-ins
     if (strncmp(buffer, "echo ", 5) == 0) {
         handle_echo(buffer);
     } else if (strncmp(buffer, "exit", 4) == 0) {
         exit(handle_exit(buffer));
     } else {
-        handle_bad_command();
+        int status = run_external(tokens, 0);
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 1) {
+            handle_bad_command();
+        }
     }
 }
 
