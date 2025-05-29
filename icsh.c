@@ -59,11 +59,10 @@ int handle_exit(const char *buffer) {
 void handle_bad_command() {
     printf("bad command\n");
 }
-
 /*
 Milestone 3
 */
-int tokenize(char *line, char **tokens) {
+int split_args(char *line, char **tokens) {
     int ntok = 0;
     char *p = strtok(line, " \t");
     while (p && ntok < MAX_TOKENS-1) {
@@ -91,7 +90,7 @@ int run_external(char **tokens, int background) {
 
 void process_command(char *buffer, char *last) {
     char *tokens[MAX_TOKENS];
-    int ntok = tokenize(buffer, tokens);
+    int ntok = split_args(buffer, tokens);
 
     if (ntok == 0) return; // No command
     //History !!
@@ -116,8 +115,6 @@ int main(int argc, char *argv[]) {
     char buffer[MAX_CMD_BUFFER];
     char last[MAX_CMD_BUFFER] = "";
     int exit_code = 0;
-
-
     /*
     Milestone 2 Script mode
     */
