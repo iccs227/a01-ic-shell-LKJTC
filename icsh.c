@@ -14,7 +14,10 @@ Milestone 1: Interactive command-line interpreter
 */
 
 void init_shell() {
-    printf("Starting IC shell\n");
+    printf("Welcome to the Interactive Command-line Shell (icsh)!\n");
+    printf("Type 'exit' to quit or '!!' to repeat the last command.\n");
+    printf("Type 'echo <message>' to print a message.\n");
+    printf("Enjoy your stay!\n\n");
 }
 
 void prompt() {
