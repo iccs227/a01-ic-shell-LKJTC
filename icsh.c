@@ -59,7 +59,6 @@ void handle_bad_command() {
 void process_command(char *buffer, char *last) {
     // 3. History (!!)
     if (handle_history(buffer, last) == -1) {
-        // History command was executed, no further processing needed
         return;
     }
 
@@ -73,17 +72,32 @@ void process_command(char *buffer, char *last) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    FILE *input = stdin;
     char buffer[MAX_CMD_BUFFER];
     char last[MAX_CMD_BUFFER] = "";
     int exit_code = 0;
+
+
+    /*
+    Milestone 2 Script mode
+    */
+    if (argc > 1) {
+        input = fopen(argv[1], "r");
+        if (!input) {
+            perror("Failed to open script file");
+            return 1;
+        }
+    }
 
     init_shell();
 
     while (1) {
         // 1. Prompt
-        prompt();
-        if (!fgets(buffer, MAX_CMD_BUFFER, stdin))
+        if (input == stdin) {
+            prompt();
+        }
+        if (!fgets(buffer, MAX_CMD_BUFFER, input))
             break; // EOF (Ctrl-D)
 
         // 2. Strip newline
@@ -93,6 +107,9 @@ int main() {
 
         // Process the command
         process_command(buffer, last);
+    }
+    if (input != stdin) {
+        fclose(input);
     }
 
     return exit_code;
