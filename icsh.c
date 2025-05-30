@@ -6,9 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <signal.h>
+#include <unistd.h>
 
 #define MAX_CMD_BUFFER 255
 #define MAX_TOKENS 64
+
+volatile sig_atomic_t foreground_pid = 0;
+int last_exit_status = 0;
 
 /*
 Milestone 1: Interactive command-line interpreter
@@ -32,22 +37,22 @@ void strip_newline(char *buffer) {
 int handle_history(char *buffer, char *last) {
     if (strcmp(buffer, "!!") == 0) {
         if (last[0] == '\0') {
-            // user typed !! but there's no last command
             return -1;
         }
-        // replay
         printf("%s\n", last);
         strcpy(buffer, last);
         return 1;
     }
-    // other than (non-empty) command → record it
     strcpy(last, buffer);
     return 0;
 }
 
-
 void handle_echo(const char *buffer) {
-    printf("%s\n", buffer + 5);
+    if (strncmp(buffer, "echo $?", 7) == 0) {
+        printf("%d\n", last_exit_status);
+    } else {
+        printf("%s\n", buffer + 5);
+    }
 }
 
 int handle_exit(const char *buffer) {
@@ -59,13 +64,14 @@ int handle_exit(const char *buffer) {
 void handle_bad_command() {
     printf("bad command\n");
 }
+
 /*
-Milestone 3
+Milestone 3: Running External Commands
 */
 int split_args(char *line, char **tokens) {
     int ntok = 0;
     char *p = strtok(line, " \t");
-    while (p && ntok < MAX_TOKENS-1) {
+    while (p && ntok < MAX_TOKENS - 1) {
         tokens[ntok++] = p;
         p = strtok(NULL, " \t");
     }
@@ -83,40 +89,96 @@ int run_external(char **tokens, int background) {
     }
     int status = 0;
     if (!background) {
-        waitpid(pid, &status, 0);
+        foreground_pid = pid;
+        waitpid(pid, &status, WUNTRACED);
+        foreground_pid = 0;
+        if (WIFEXITED(status)) {
+            last_exit_status = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            last_exit_status = 128 + WTERMSIG(status);
+        }
     }
     return status;
 }
 
-void process_command(char *buffer, char *last) {
-    char *tokens[MAX_TOKENS];
-    int ntok = split_args(buffer, tokens);
+/*
+Milestone 4: Signal Handlers
+*/
+void sigint_handler(int sig) {
+    if (foreground_pid > 0) {
+        kill(foreground_pid, SIGINT);
+    }
+}
 
-    if (ntok == 0) return; // No command
-    //History !!
+void sigtstp_handler(int sig) {
+    if (foreground_pid > 0) {
+        kill(foreground_pid, SIGSTOP);
+    }
+}
+
+void install_signal_handlers() {
+    struct sigaction sa_int, sa_tstp;
+
+    sa_int.sa_handler = sigint_handler;
+    sigemptyset(&sa_int.sa_mask);
+    sa_int.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa_int, NULL);
+
+    sa_tstp.sa_handler = sigtstp_handler;
+    sigemptyset(&sa_tstp.sa_mask);
+    sa_tstp.sa_flags = SA_RESTART;
+    sigaction(SIGTSTP, &sa_tstp, NULL);
+}
+
+void process_command(char *buffer, char *last) {
     if (handle_history(buffer, last) == -1) {
         return;
     }
-    //Built-ins
-    if (strncmp(buffer, "echo ", 5) == 0) {
-        handle_echo(buffer);
-    } else if (strncmp(buffer, "exit", 4) == 0) {
+    char *tokens[MAX_TOKENS];
+    int ntok = split_args(buffer, tokens);
+
+    if (ntok == 0) return;
+    
+    else if (strcmp(tokens[0], "echo") == 0) {
+        // Handle `echo $?`
+        for (int i = 1; i < ntok; ++i) {
+            if (strcmp(tokens[i], "$?") == 0) {
+                printf("%d", last_exit_status);
+            } else {
+                printf("%s", tokens[i]);
+            }
+            if (i != ntok - 1) printf(" ");
+        }
+        printf("\n");
+        last_exit_status = 0;
+    } else if (strcmp(tokens[0], "exit") == 0) {
+        last_exit_status = 0;
         exit(handle_exit(buffer));
     } else {
         int status = run_external(tokens, 0);
+        if (WIFEXITED(status)) {
+            last_exit_status = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            last_exit_status = 128 + WTERMSIG(status);
+        }
+
         if (WIFEXITED(status) && WEXITSTATUS(status) == 1) {
             handle_bad_command();
         }
     }
 }
 
+
+
+
 int main(int argc, char *argv[]) {
     FILE *input = stdin;
     char buffer[MAX_CMD_BUFFER];
     char last[MAX_CMD_BUFFER] = "";
     int exit_code = 0;
+
     /*
-    Milestone 2 Script mode
+    Milestone 2: Script mode
     */
     if (argc > 1) {
         input = fopen(argv[1], "r");
@@ -126,24 +188,23 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    install_signal_handlers();
     init_shell();
 
     while (1) {
-        // 1. Prompt
         if (input == stdin) {
             prompt();
         }
         if (!fgets(buffer, MAX_CMD_BUFFER, input))
-            break; // EOF (Ctrl-D)
+            break;
 
-        // 2. Strip newline
         strip_newline(buffer);
         if (buffer[0] == '\0')
-            continue; // Empty line
+            continue;
 
-        // Process the command
         process_command(buffer, last);
     }
+
     if (input != stdin) {
         fclose(input);
     }
