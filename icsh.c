@@ -152,8 +152,35 @@ void process_command(char *buffer, char *last) {
     char *tokens[MAX_TOKENS];
     int ntok = split_args(buffer, tokens);
 
-    if (ntok == 0) return; //No command
+    char *infile = NULL, *outfile = NULL;
+    int i = 0;
+    while (i < ntok) {
+        if (strcmp(tokens[i], "<") == 0 && i + 1 < ntok) {
+            infile = tokens[i + 1];
+            // Remove < and filename from tokens
+            int j = i;
+            while (j + 2 < ntok) {
+                tokens[j] = tokens[j + 2];
+                j++;
+            }
+            ntok -= 2;
+            tokens[ntok] = NULL;
+            continue;
+        } else if (strcmp(tokens[i], ">") == 0 && i + 1 < ntok) {
+            outfile = tokens[i + 1];
+            int j = i;
+            while (j + 2 < ntok) {
+                tokens[j] = tokens[j + 2];
+                j++;
+            }
+            ntok -= 2;
+            tokens[ntok] = NULL;
+            continue;
+        }
+        i++;
+    }
 
+    if (ntok == 0) return;
     
     else if (strcmp(tokens[0], "echo") == 0) {
         // Handle `echo $?`
@@ -171,7 +198,8 @@ void process_command(char *buffer, char *last) {
         last_exit_status = 0;
         exit(handle_exit(buffer));
     } else {
-        int status = run_external(tokens, 0);
+        // --- CHANGE THIS LINE TO PASS infile, outfile ---
+        int status = run_external(tokens, 0, infile, outfile);
         if (WIFEXITED(status)) {
             last_exit_status = WEXITSTATUS(status);
         } else if (WIFSIGNALED(status)) {
@@ -213,7 +241,6 @@ int main(int argc, char *argv[]) {
         }
         if (!fgets(buffer, MAX_CMD_BUFFER, input))
             break;
-
         strip_newline(buffer);
         if (buffer[0] == '\0')
             continue;
