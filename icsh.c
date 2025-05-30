@@ -130,6 +130,7 @@ void sigtstp_handler(int sig) {
 }
 
 // Install signal handlers for SIGINT and SIGTSTP
+// Check if a child process is running and send the signal to it, not to the shell.
 void install_signal_handlers() {
     struct sigaction sa_int, sa_tstp;
 
