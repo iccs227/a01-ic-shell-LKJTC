@@ -146,14 +146,14 @@ void install_signal_handlers() {
 }
 
 void process_command(char *buffer, char *last) {
+     if (handle_history(buffer, last) == -1) {
+        return;
+    }
     char *tokens[MAX_TOKENS];
     int ntok = split_args(buffer, tokens);
 
     if (ntok == 0) return; //No command
 
-    if (handle_history(buffer, last) == -1) {
-        return;
-    }
     
     else if (strcmp(tokens[0], "echo") == 0) {
         // Handle `echo $?`
