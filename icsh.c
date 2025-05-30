@@ -149,18 +149,35 @@ void process_command(char *buffer, char *last) {
     char *tokens[MAX_TOKENS];
     int ntok = split_args(buffer, tokens);
 
-    if (ntok == 0) return; // No command
-    //History !!
+    if (ntok == 0) return; //No command
+
     if (handle_history(buffer, last) == -1) {
         return;
     }
-    //Built-ins
-    if (strncmp(buffer, "echo ", 5) == 0) {
-        handle_echo(buffer);
-    } else if (strncmp(buffer, "exit", 4) == 0) {
+    
+    else if (strcmp(tokens[0], "echo") == 0) {
+        // Handle `echo $?`
+        for (int i = 1; i < ntok; ++i) {
+            if (strcmp(tokens[i], "$?") == 0) {
+                printf("%d", last_exit_status);
+            } else {
+                printf("%s", tokens[i]);
+            }
+            if (i != ntok - 1) printf(" ");
+        }
+        printf("\n");
+        last_exit_status = 0;
+    } else if (strcmp(tokens[0], "exit") == 0) {
+        last_exit_status = 0;
         exit(handle_exit(buffer));
     } else {
         int status = run_external(tokens, 0);
+        if (WIFEXITED(status)) {
+            last_exit_status = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            last_exit_status = 128 + WTERMSIG(status);
+        }
+
         if (WIFEXITED(status) && WEXITSTATUS(status) == 1) {
             handle_bad_command();
         }
