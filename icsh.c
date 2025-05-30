@@ -83,7 +83,7 @@ int split_args(char *line, char **tokens) {
     while (p && ntok < MAX_TOKENS - 1) {
         tokens[ntok++] = p;
         p = strtok(NULL, " \t");
-    }
+    } 
     tokens[ntok] = NULL;
     return ntok;
 }
