@@ -205,10 +205,34 @@ void sigtstp_handler(int sig) {
     }
 }
 
+void sigchld_handler(int sig) {
+    int status;
+    pid_t pid;
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
+        job_t *job = find_job_by_pid(pid);
+        if (job) {
+            if (WIFEXITED(status) || WIFSIGNALED(status)) {
+                job->state = DONE;
+                printf("\n[%d]+  Done\t\t%s\n", job->id, job->cmdline);
+                remove_job(pid);
+                prompt();
+                fflush(stdout);
+            } else if (WIFSTOPPED(status)) {
+                job->state = STOPPED;
+                printf("\n[%d]+  Stopped\t\t%s\n", job->id, job->cmdline);
+                prompt();
+                fflush(stdout);
+            } else if (WIFCONTINUED(status)) {
+                job->state = RUNNING;
+            }
+        }
+    }
+}
+
 // Install signal handlers for SIGINT and SIGTSTP
 // Check if a child process is running and send the signal to it, not to the shell.
 void install_signal_handlers() {
-    struct sigaction sa_int, sa_tstp;
+    struct sigaction sa_int, sa_tstp, sa_chld;
 
     sa_int.sa_handler = sigint_handler;
     sigemptyset(&sa_int.sa_mask);
@@ -219,6 +243,11 @@ void install_signal_handlers() {
     sigemptyset(&sa_tstp.sa_mask);
     sa_tstp.sa_flags = SA_RESTART;
     sigaction(SIGTSTP, &sa_tstp, NULL);
+
+    sa_chld.sa_handler = sigchld_handler;
+    sigemptyset(&sa_chld.sa_mask);
+    sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP | SA_NOCLDWAIT;
+    sigaction(SIGCHLD, &sa_chld, NULL);
 }
 
 void process_command(char *buffer, char *last) {
