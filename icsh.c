@@ -137,8 +137,9 @@ int split_args(char *line, char **tokens) {
 }
 
 //Run an external command
-int run_external(char **tokens, int background, char *infile, char *outfile) {
-    pid_t pid = fork(); //Create child process
+int run_external(char **tokens, int background, char *infile, char *outfile, const char *full_cmd) {
+    pid_t pid = fork();
+    
     if (pid == 0) {
         setpgid(0, 0);
 
@@ -163,15 +164,21 @@ int run_external(char **tokens, int background, char *infile, char *outfile) {
         }
 
         execvp(tokens[0], tokens);
-        perror("execvp"); //exec fails print error
+        perror("execvp");
         exit(1);
+    }
+    if (background && pid > 0) {
+        setpgid(pid, pid);
+        int job_id = add_job(pid, RUNNING, full_cmd);
+        printf("[%d] %d\n", job_id, pid);
+        fflush(stdout);
+        return 0;
     }
     int status = 0;
     if (!background) {
         foreground_pid = pid;
         waitpid(pid, &status, WUNTRACED);
         foreground_pid = 0;
-        // save exit status for $?
         if (WIFEXITED(status)) {
             last_exit_status = WEXITSTATUS(status);
         } else if (WIFSIGNALED(status)) {
