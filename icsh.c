@@ -262,7 +262,7 @@ int run_external(char **tokens, int background, char *infile, char *outfile, con
         }
 
         execvp(tokens[0], tokens);
-        perror("execvp");
+        handle_bad_command();
         exit(1);
     }
     if (background && pid > 0) {
@@ -459,9 +459,7 @@ void process_command(char *buffer, char *last) {
             last_exit_status = WEXITSTATUS(status);
         } else if (WIFSIGNALED(status)) {
             last_exit_status = 128 + WTERMSIG(status);
-        }
-
-        if (WIFEXITED(status) && (WEXITSTATUS(status) == 1 || WEXITSTATUS(status) == 127)) {
+        } else if (WIFEXITED(status) && (WEXITSTATUS(status) == 1 || WEXITSTATUS(status) == 127)) {
             handle_bad_command();
         }
     }
