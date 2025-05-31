@@ -114,13 +114,21 @@ void print_green(const char *text) {
     fflush(stdout);
 }
 
+void print_help(){
+    print_green("Available commands:");
+    print_green("1. Exit [code] - Exit the shell with an optional exit code");
+    print_green("2. !! - Repeat the last command");
+    print_green("3. Echo [text] - Print text to the console");
+    print_green("4. Jobs - List current jobs");
+    print_green("5. fg %%<job_id>: Brings the job identified by <job_id> into the foreground.");
+    print_green("6. bg %%<job_id>: Execute the suspended job identified by <job_id> in the background.");
+}
+
 void init_shell() {
     print_rickroll(); // Print Rick Roll art at the start
     print_green("Welcome to the Interactive Command-line Shell (icsh)!");
     usleep(25 * 1000); // 25 ms
-    print_green("Type 'exit' to quit or '!!' to repeat the last command.");
-    usleep(25 * 1000);
-    print_green("Type 'echo <message>' to print a message.");
+    print_green("Type 'help' to check command lists.");
     usleep(25 * 1000);
     print_green("Enjoy your stay!");
     usleep(25 * 1000);
