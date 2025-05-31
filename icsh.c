@@ -7,7 +7,8 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <signal.h>
-#include <unistd.h>
+#include <fcntl.h>  // for open
+#include <unistd.h> // for dup2, close
 
 #define MAX_CMD_BUFFER 255
 #define MAX_TOKENS 64
@@ -89,11 +90,32 @@ int split_args(char *line, char **tokens) {
 }
 
 //Run an external command
-int run_external(char **tokens, int background) {
+int run_external(char **tokens, int background, char *infile, char *outfile) {
     pid_t pid = fork(); //Create child process
     if (pid == 0) {
-        setpgid(0, 0); // Set new p_group for child
-        execvp(tokens[0], tokens); 
+        setpgid(0, 0);
+
+        // Milestone 5: I/O Redirection with dup2 and open()
+        if (infile) {
+            int fd_in = open(infile, O_RDONLY);
+            if (fd_in < 0) {
+                perror("open input file");
+                exit(1);
+            }
+            dup2(fd_in, STDIN_FILENO);  // Redirect stdin to fd_in
+            close(fd_in);               // Close fd_in 
+        }
+        if (outfile) {
+            int fd_out = open(outfile, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+            if (fd_out < 0) {
+                perror("open output file");
+                exit(1);
+            }
+            dup2(fd_out, STDOUT_FILENO); // Redirect stdout to fd_out
+            close(fd_out);               // Close fd_out 
+        }
+
+        execvp(tokens[0], tokens);
         perror("execvp"); //exec fails print error
         exit(1);
     }
@@ -151,7 +173,7 @@ void process_command(char *buffer, char *last) {
     }
     char *tokens[MAX_TOKENS];
     int ntok = split_args(buffer, tokens);
-
+    // Milestone 5: Redirection Parsing
     char *infile = NULL, *outfile = NULL;
     int i = 0;
     while (i < ntok) {
