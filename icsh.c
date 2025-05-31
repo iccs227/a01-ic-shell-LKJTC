@@ -12,6 +12,19 @@
 
 #define MAX_CMD_BUFFER 255
 #define MAX_TOKENS 64
+#define MAX_JOBS 64
+
+typedef enum { RUNNING, STOPPED, DONE } job_state;
+
+typedef struct {
+    int id;
+    pid_t pid;
+    job_state state;
+    char cmdline[MAX_CMD_BUFFER];
+} job_t;
+
+job_t jobs[MAX_JOBS];
+int next_job_id = 1;
 
 volatile sig_atomic_t foreground_pid = 0; // PID of the current foreground process
 int last_exit_status = 0;                 // Exit status of the last command
@@ -71,6 +84,40 @@ int handle_exit(const char *buffer) {
 // Print error
 void handle_bad_command() {
     printf("bad command\n");
+}
+
+/*
+Milestone 6: Job Control
+*/
+int add_job(pid_t pid, job_state state, const char *cmdline) {
+    for (int i = 0; i < MAX_JOBS; i++) {
+        if (jobs[i].pid == 0) {
+            jobs[i].id = next_job_id++;
+            jobs[i].pid = pid;
+            jobs[i].state = state;
+            strncpy(jobs[i].cmdline, cmdline, MAX_CMD_BUFFER-1);
+            jobs[i].cmdline[MAX_CMD_BUFFER-1] = '\0';
+            return jobs[i].id;
+        }
+    }
+    return -1;
+}
+
+job_t* find_job_by_pid(pid_t pid) {
+    for (int i = 0; i < MAX_JOBS; i++)
+        if (jobs[i].pid == pid) return &jobs[i];
+    return NULL;
+}
+
+job_t* find_job_by_id(int id) {
+    for (int i = 0; i < MAX_JOBS; i++)
+        if (jobs[i].id == id) return &jobs[i];
+    return NULL;
+}
+
+void remove_job(pid_t pid) {
+    for (int i = 0; i < MAX_JOBS; i++)
+        if (jobs[i].pid == pid) jobs[i].pid = 0;
 }
 
 /*
