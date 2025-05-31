@@ -435,6 +435,21 @@ void process_command(char *buffer, char *last) {
         }
         return;
     }
+
+    // Help function
+    else if (strcmp(tokens[0], "help") == 0) {      
+        print_help();
+        last_exit_status = 0;
+        return;
+    }
+
+    // Clear function
+    else if (strcmp(tokens[0], "clear") == 0) {
+    printf("\033[2J\033[H");
+    fflush(stdout);
+    last_exit_status = 0;
+    return;
+    }
     
     else if (strcmp(tokens[0], "echo") == 0) {
         // Handle `echo $?`
