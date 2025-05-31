@@ -251,12 +251,16 @@ void install_signal_handlers() {
 }
 
 void process_command(char *buffer, char *last) {
-     if (handle_history(buffer, last) == -1) {
+    char full_cmd[MAX_CMD_BUFFER];
+    strncpy(full_cmd, buffer, MAX_CMD_BUFFER-1);
+    full_cmd[MAX_CMD_BUFFER-1] = '\0';
+    if (handle_history(buffer, last) == -1) {
         return;
     }
     char *tokens[MAX_TOKENS];
     int ntok = split_args(buffer, tokens);
-    // Milestone 5: Redirection Parsing
+
+    // === BEGIN: Milestone 5 Redirection Parsing ===
     char *infile = NULL, *outfile = NULL;
     int i = 0;
     while (i < ntok) {
@@ -284,8 +288,55 @@ void process_command(char *buffer, char *last) {
         }
         i++;
     }
+    
+    // Milestone 6: Background Job Detection 
+    int background = 0;
+    if (ntok > 0 && strcmp(tokens[ntok-1], "&") == 0) {
+        background = 1;
+        tokens[--ntok] = NULL; // Remove "&" from tokens
+    }
 
     if (ntok == 0) return;
+
+    // jobs built-in
+    if (strcmp(tokens[0], "jobs") == 0) {
+        for (int j = 0; j < MAX_JOBS; j++) {
+            if (jobs[j].pid > 0) {
+                printf("[%d] %s\t\t%s\n", jobs[j].id,
+                    jobs[j].state == RUNNING ? "Running" :
+                    jobs[j].state == STOPPED ? "Stopped" : "Done",
+                    jobs[j].cmdline);
+            }
+        }
+        return;
+    }
+
+    // fg built-in
+    else if (strcmp(tokens[0], "fg") == 0 && tokens[1] && tokens[1][0] == '%') {
+        int job_id = atoi(tokens[1] + 1);
+        job_t *job = find_job_by_id(job_id);
+        if (job && job->pid > 0) {
+            job->state = RUNNING;
+            printf("%s\n", job->cmdline);
+            kill(job->pid, SIGCONT);
+            foreground_pid = job->pid;
+            waitpid(job->pid, NULL, WUNTRACED);
+            foreground_pid = 0;
+        }
+        return;
+    }
+
+    // bg built-in
+    else if (strcmp(tokens[0], "bg") == 0 && tokens[1] && tokens[1][0] == '%') {
+        int job_id = atoi(tokens[1] + 1);
+        job_t *job = find_job_by_id(job_id);
+        if (job && job->pid > 0) {
+            job->state = RUNNING;
+            kill(job->pid, SIGCONT);
+            printf("[%d]+ %s\n", job->id, job->cmdline);
+        }
+        return;
+    }
     
     else if (strcmp(tokens[0], "echo") == 0) {
         // Handle `echo $?`
@@ -303,8 +354,9 @@ void process_command(char *buffer, char *last) {
         last_exit_status = 0;
         exit(handle_exit(buffer));
     } else {
-        // --- CHANGE THIS LINE TO PASS infile, outfile ---
-        int status = run_external(tokens, 0, infile, outfile);
+        
+        // --- PASS background TO run_external ---
+        int status = run_external(tokens, background, infile, outfile, full_cmd);
         if (WIFEXITED(status)) {
             last_exit_status = WEXITSTATUS(status);
         } else if (WIFSIGNALED(status)) {
